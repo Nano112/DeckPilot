@@ -23,7 +23,8 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
-            cmake
+            cmake \
+            libfuse2
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -51,6 +52,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+          NO_STRIP: true
         with:
           projectPath: client
           tauriScript: bunx tauri
