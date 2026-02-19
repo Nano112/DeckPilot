@@ -8,7 +8,6 @@ use tauri::{AppHandle, Emitter};
 use crate::haptic::HapticRequest;
 
 /// Maps SDL2 GameController buttons to W3C Gamepad API indices.
-/// This ensures existing DeckPilot gamepadBindings config works unchanged.
 fn button_to_w3c(button: Button) -> u8 {
     match button {
         Button::A => 0,
@@ -17,7 +16,6 @@ fn button_to_w3c(button: Button) -> u8 {
         Button::Y => 3,
         Button::LeftShoulder => 4,
         Button::RightShoulder => 5,
-        // 6 = LT, 7 = RT (handled as axis triggers below)
         Button::Back => 8,
         Button::Start => 9,
         Button::LeftStick => 10,
@@ -42,16 +40,20 @@ struct GamepadStatusEvent {
     name: String,
 }
 
+struct ControllerEntry {
+    controller: sdl2::controller::GameController,
+}
+
 const TRIGGER_THRESHOLD: i16 = 8000;
 
 pub fn spawn_gamepad_thread(app: AppHandle, haptic_rx: mpsc::Receiver<HapticRequest>) {
     thread::spawn(move || {
         let sdl = sdl2::init().expect("Failed to init SDL2");
         let game_controller = sdl.game_controller().expect("Failed to init GameController");
-        let haptic = sdl.haptic().expect("Failed to init haptic subsystem");
+        let haptic_sub = sdl.haptic().expect("Failed to init haptic subsystem");
         let mut event_pump = sdl.event_pump().expect("Failed to get event pump");
 
-        let mut controllers: Vec<sdl2::controller::GameController> = Vec::new();
+        let mut controllers: Vec<ControllerEntry> = Vec::new();
         let mut haptic_devices: Vec<Option<sdl2::haptic::Haptic>> = Vec::new();
         let mut lt_pressed = false;
         let mut rt_pressed = false;
@@ -64,22 +66,14 @@ pub fn spawn_gamepad_thread(app: AppHandle, haptic_rx: mpsc::Receiver<HapticRequ
                         connected: true,
                         name: controller.name(),
                     });
-                    // Try to open haptic on this controller's joystick
-                    let h = sdl2::haptic::Haptic::from_joystick(
-                        &haptic,
-                        controller.as_ref(),
-                    ).ok();
-                    if let Some(ref h_dev) = h {
-                        let _ = h_dev.rumble_init();
-                    }
+                    let h = haptic_sub.open_from_joystick_id(i).ok();
                     haptic_devices.push(h);
-                    controllers.push(controller);
+                    controllers.push(ControllerEntry { controller });
                 }
             }
         }
 
         loop {
-            // Process SDL events
             for event in event_pump.poll_iter() {
                 match event {
                     Event::ControllerDeviceAdded { which, .. } => {
@@ -88,24 +82,18 @@ pub fn spawn_gamepad_thread(app: AppHandle, haptic_rx: mpsc::Receiver<HapticRequ
                                 connected: true,
                                 name: controller.name(),
                             });
-                            let h = sdl2::haptic::Haptic::from_joystick(
-                                &haptic,
-                                controller.as_ref(),
-                            ).ok();
-                            if let Some(ref h_dev) = h {
-                                let _ = h_dev.rumble_init();
-                            }
+                            let h = haptic_sub.open_from_joystick_id(which).ok();
                             haptic_devices.push(h);
-                            controllers.push(controller);
+                            controllers.push(ControllerEntry { controller });
                         }
                     }
                     Event::ControllerDeviceRemoved { which, .. } => {
-                        if let Some(idx) = controllers.iter().position(|c| c.instance_id() == which) {
+                        if let Some(idx) = controllers.iter().position(|e| e.controller.instance_id() == which) {
                             let removed = controllers.remove(idx);
                             haptic_devices.remove(idx);
                             let _ = app.emit("gamepad_status", GamepadStatusEvent {
                                 connected: false,
-                                name: removed.name(),
+                                name: removed.controller.name(),
                             });
                             lt_pressed = false;
                             rt_pressed = false;
@@ -118,7 +106,6 @@ pub fn spawn_gamepad_thread(app: AppHandle, haptic_rx: mpsc::Receiver<HapticRequ
                         }
                     }
                     Event::ControllerAxisMotion { axis, value, .. } => {
-                        // Left trigger → button 6, Right trigger → button 7
                         match axis {
                             sdl2::controller::Axis::TriggerLeft => {
                                 if value > TRIGGER_THRESHOLD && !lt_pressed {
@@ -143,18 +130,15 @@ pub fn spawn_gamepad_thread(app: AppHandle, haptic_rx: mpsc::Receiver<HapticRequ
                 }
             }
 
-            // Process haptic requests from the frontend
+            // Process haptic requests
             while let Ok(req) = haptic_rx.try_recv() {
-                for h_opt in haptic_devices.iter() {
-                    if let Some(ref h) = h_opt {
-                        let lo = (req.strength * 0.3 * 65535.0) as u16;
-                        let hi = (req.strength * 65535.0) as u16;
-                        let _ = h.rumble_play(lo, hi, req.duration_ms);
+                for h_opt in haptic_devices.iter_mut() {
+                    if let Some(ref mut h) = h_opt {
+                        h.rumble_play(req.strength, req.duration_ms);
                     }
                 }
             }
 
-            // ~120Hz poll rate
             thread::sleep(Duration::from_millis(8));
         }
     });

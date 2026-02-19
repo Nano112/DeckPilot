@@ -48,3 +48,7 @@ sounds/
 
 # Tauri
 client/src-tauri/target/
+
+# Editor
+.vscode
+.history
