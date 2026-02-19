@@ -1,0 +1,33 @@
+{
+	"name": "deckpilot",
+	"version": "0.1.0",
+	"description": "A cross-platform remote macro pad that turns any touchscreen device into a customizable control surface",
+	"license": "MIT",
+	"packageManager": "bun@1.2.4",
+	"workspaces": [
+		"./server",
+		"./client",
+		"./shared"
+	],
+	"scripts": {
+		"dev": "turbo dev",
+		"dev:client": "turbo dev --filter=client",
+		"dev:server": "turbo dev --filter=server",
+		"build": "turbo build",
+		"build:client": "turbo build --filter=client",
+		"build:server": "turbo build --filter=server",
+		"lint": "turbo lint",
+		"type-check": "turbo type-check",
+		"test": "turbo test",
+		"tauri:dev": "turbo dev --filter=client & cd client && cargo tauri dev",
+		"tauri:build": "turbo build --filter=client && cd client && cargo tauri build",
+		"postinstall": "turbo build --filter=shared --filter=server"
+	},
+	"devDependencies": {
+		"bun-types": "latest",
+		"turbo": "^2.6.3"
+	},
+	"peerDependencies": {
+		"typescript": "^5.8.3"
+	}
+}
