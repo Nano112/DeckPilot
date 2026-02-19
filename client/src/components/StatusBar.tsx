@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { PageConfig, ProfileConfig } from "shared";
+import { isTauri } from "../lib/platform";
 
 interface StatusBarProps {
   connected: boolean;
@@ -143,6 +144,18 @@ export function StatusBar({
 
       {/* Right-side controls */}
       <div className="flex items-center gap-1.5 shrink-0">
+        {!isTauri() && (
+          <a
+            href="https://github.com/Nano112/DeckPilot/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors hover:bg-[var(--bg-button)]"
+            style={{ color: "var(--accent)" }}
+          >
+            <DownloadIcon />
+            App
+          </a>
+        )}
         <IconButton
           onClick={toggleFullscreen}
           label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -188,6 +201,14 @@ function ExitFullscreenIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
       <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
     </svg>
   );
 }
